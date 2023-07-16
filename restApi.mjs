@@ -9,7 +9,7 @@ import { EventEmitter } from "node:events";
 
 const apiEmitter = new EventEmitter();
 
-const availableCommands = ["changeconfig", "panick"];
+const availableCommands = ["changeconfig", "panick", "reload"];
 
 const restApi = http.createServer((req, res)=>{
     const params = req.url.substring(1).split('/');

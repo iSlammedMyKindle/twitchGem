@@ -21,15 +21,6 @@ const playerButtonIndex = {};
 // Press down indexing - everyone is going to wanna press down the same button at some point. Instead of letting go after 1 second for all button presses, have a countdown in order to wait to lift that virtual thumb up
 const pressDownIndex = {};
 
-for(const file of await fs.readdir('./configs')){
-    if(file.indexOf('.json') > -1){
-        fs.readFile('./configs/'+file).then(e=>{
-            configs[file.split('.json')[0]] = JSON.parse(e.toString());
-            console.log(file, 'has been loaded');
-        });
-    }
-}
-
 // Pasted from the godotGem client. We need these to send the correct button inputs to the emulated controller
 const controllerMapping = {
 	"up":0,
@@ -47,6 +38,50 @@ const controllerMapping = {
 	"b":12,
 	"x":13,
 	"y":14,
+}
+
+/**
+ * load a configuration json file, or all of them if one isn't specified
+ * @param {String} config - Name of the config under the ./configs directory
+ */
+async function loadConfigs(config){
+    //  Reject any backdoors if someone somehow gained access to the rest api
+    if(config?.indexOf('.') > -1 || config?.indexOf('/') > -1) throw new Error('Invalid config name (must be "flat", no .json, dots or slashes)');
+
+    if(config){
+        const buff = await fs.readFile('./configs/'+config+'.json');
+        configs[config] = JSON.parse(buff.toString());
+        console.log(config + " was reloaded");
+        return;
+    }
+
+    for(const file of await fs.readdir('./configs')){
+        if(file.indexOf('.json') > -1){
+            fs.readFile('./configs/'+file).then(e=>{
+                configs[file.split('.json')[0]] = JSON.parse(e.toString());
+                console.log(file, 'has been loaded');
+            });
+        }
+    }
+}
+
+loadConfigs();
+
+function buttonRelease(moveJson){
+    // Get rid of this reference so we can press the button again
+    delete playerButtonIndex[moveJson.user][moveJson.btn];
+    if(pressDownIndex[moveJson.btn] > 0) pressDownIndex[moveJson.btn]--;
+
+    // Set to 0 if we went negative
+    if(pressDownIndex[moveJson.btn] < 0) pressDownIndex[moveJson.btn] = 0;
+
+    if(pressDownIndex[moveJson.btn] === 0){
+        godotGemServer.send([0, moveJson.btn, 0]);
+        moveJson.pressed = false;
+        
+        // broadcast release
+        console.log(moveJson);
+    }
 }
 
 // Attempt to connect to godotGem on launch. If that succeeds, connect to twitchListenerCore
@@ -76,19 +111,22 @@ godotGemServer.on('open', ()=>{
 
         if(moveJson.btn !== undefined){
             //Send inputs to godotGem
-            godotGemServer.send([0, moveJson.btn, 255 ]);
 
-            //Broadcast button press
-            console.log(moveJson);
+            //If the user is already pressing the button, ignore it until their time is up. They can then press it again.
+            if(!playerButtonIndex[resJson.user]) playerButtonIndex[resJson.user] = {};
+            if(!playerButtonIndex[resJson.user][moveJson.btn]){
+                // Set a time to release the button and delete the timeout reference from the object. If this is the last person pressing the button, let go
+                playerButtonIndex[resJson.user][moveJson.btn] = setTimeout(()=>buttonRelease(moveJson), 1000);
 
-            // Hold down for 1 second, then release
-            setTimeout(()=>{
-                godotGemServer.send([0, moveJson.btn, 0]);
-                moveJson.pressed = false;
-
-                // broadcast release
-                console.log(moveJson);
-            }, 1000);
+                if(!pressDownIndex[moveJson.btn]){
+                    godotGemServer.send([0, moveJson.btn, 255 ]);
+                    //Broadcast button press
+                    console.log(moveJson);
+                    
+                    pressDownIndex[moveJson.btn] = 1;
+                }
+                else pressDownIndex[moveJson.btn]++;
+            }
         }
     });
 });
@@ -118,9 +156,37 @@ restApi.on('changeconfig', ({params, callback})=>{
 // Completely shut it all down - if something happens, use this to prevent any inputs from going through
 restApi.on('panick', ({ callback })=>{
     activeConfig = {}; // Empty config so buttons don't go through
+
+    // Delete all user button presses
+    for(const user in playerButtonIndex){
+        for(const timeoutId in playerButtonIndex[user]){
+            clearTimeout(playerButtonIndex[user][timeoutId]);
+            delete playerButtonIndex[user][timeoutId];
+        }
+    }
+
+    // Release all buttons
+    for(const button in pressDownIndex){
+        // Release the button
+        godotGemServer.send([0, button*1, 0]);
+        delete pressDownIndex[button];
+    }
+
     const res = "Ignoring all button commands!!!";
     console.log(res);
     callback(true, res);
 
     // Send a signal to websockets telling the controller is disabled
+});
+
+// Reload a config
+restApi.on('reload', async ({params, callback})=>{
+    // There's no exception handling in the reload function, so we're doing it here
+    try{
+        await loadConfigs(params[1]);
+        callback(true, params[1] ? "Reloaded "+params[1] : "Reloaded all configs");
+    }
+    catch(e){
+        callback(false, e.toString());
+    }
 });

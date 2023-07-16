@@ -1,4 +1,5 @@
 {
     "jump":"a",
-    "run": "right"
+    "run": "right",
+    "duck": "down"
 }
