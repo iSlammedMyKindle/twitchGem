@@ -10,7 +10,6 @@ import serverConfig from "./serverConfig.json" assert {type:'json'};
 // import http from "http";
 import fs from "fs/promises";
 import restApi from "./restApi.mjs";
-import { release } from "os";
 
 // This was originally a flat object, 
 class joystick {
