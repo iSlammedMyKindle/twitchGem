@@ -177,7 +177,13 @@ godotGemServer.on('open', ()=>{
         if(!resJson.text || resJson.text && resJson.text[0] !== "!") return;
 
         const twitchPhrase = resJson.text.substring(1);
-        const moveJson = { btn: activeConfig ? controllerMapping[activeConfig[twitchPhrase]] : controllerMapping[twitchPhrase], label: twitchPhrase, user: resJson.user, pressed: true };
+        const activeConfOption = activeConfig? activeConfig[twitchPhrase] : undefined;
+        var duration = activeConfOption?.duration,
+            key = activeConfOption?.key || activeConfOption;
+        
+        if(activeConfOption?.random && duration) duration = Math.floor(Math.random() * duration);
+
+        const moveJson = { btn: activeConfig ? controllerMapping[key] : controllerMapping[twitchPhrase], label: twitchPhrase, user: resJson.user, pressed: true, duration };
 
         if(moveJson.btn !== undefined){
             //Send inputs to godotGem
@@ -186,7 +192,7 @@ godotGemServer.on('open', ()=>{
             if(!playerButtonIndex[resJson.user]) playerButtonIndex[resJson.user] = {};
             if(!playerButtonIndex[resJson.user][moveJson.label]){
                 // Set a time to release the button and delete the timeout reference from the object. If this is the last person pressing the button, let go
-                playerButtonIndex[resJson.user][moveJson.label] = setTimeout(()=>buttonRelease(moveJson), 1000);
+                playerButtonIndex[resJson.user][moveJson.label] = setTimeout(()=>buttonRelease(moveJson), duration || 1000);
 
                 if(!pressDownIndex[moveJson.label]){
                     // Determine if we're using a joystick or not

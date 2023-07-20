@@ -1,5 +1,7 @@
 {
-    "jump":"a",
+    "jump": "a",
     "run": "right",
-    "duck": "down"
+    "duck": { "key": "down", "duration": 300 },
+    "attack": { "key": "b", "duration": 50 },
+    "shoot": { "key": "x", "duration": 1000, "random": true }
 }
