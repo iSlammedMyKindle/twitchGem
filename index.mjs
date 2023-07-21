@@ -113,7 +113,7 @@ function joyRelease(joyObj){
     var released = false;
 
     // If this is not the same number associated with this joystick position, we should ignore it so the current position isn't cancelled out
-    const joyArray = joystickData[joyObj.stickLR*1];
+    const joyArray = joystickData[joyObj.stickLR * 1];
     for(let i = 0; i < joyObj.data.length; i++){
         if(!joyObj.data[i]) continue;
 
@@ -128,30 +128,66 @@ function joyRelease(joyObj){
     return released;
 }
 
-function buttonRelease(moveJson){
+function buttonRelease({btn, label, user}){
     // Get rid of this reference so we can press the button again
-    delete playerButtonIndex[moveJson.user][moveJson.label];
-    if(pressDownIndex[moveJson.label] > 0) pressDownIndex[moveJson.label]--;
+    delete playerButtonIndex[user][label];
+    if(pressDownIndex[label] > 0) pressDownIndex[label]--;
 
     // Set to 0 if we went negative
-    if(pressDownIndex[moveJson.label] < 0) pressDownIndex[moveJson.label] = 0;
+    if(pressDownIndex[label] < 0) pressDownIndex[label] = 0;
 
-    if(pressDownIndex[moveJson.label] === 0){
+    if(pressDownIndex[label] === 0){
         // Joystsick data will be handled differently over a standard button
         var released = false;
 
-        if(moveJson.btn?.type == "joystick") released = joyRelease(moveJson.btn);
+        if(btn?.type == "joystick") released = joyRelease(btn);
         else{
             released = true;
-            godotGemServer.send([0, moveJson.btn, 0]);
+            godotGemServer.send([0, btn, 0]);
         }
         
         // broadcast release
         if(released){
-            moveJson.pressed = false;
-            console.log(moveJson);
+            arguments[0].pressed = false;
+            console.log(arguments[0]);
         }
     }
+}
+
+/**
+ * Presses the button based on if whether or not someone is already pressing the button or not. If someone is then the button press is instead incremented.
+ * @param {btn, label, user, duration, pressed} param0 - an object containing all the data needed to press said button 
+ */
+function buttonPress({ btn, label, user, duration, pressed }){
+    // If the user is already pressing the button, ignore it until their time is up. They can then press it again.
+    if(!playerButtonIndex[user]) playerButtonIndex[user] = {};
+    
+    if(playerButtonIndex[user][label]) return;
+    
+    // Set a time to release the button and delete the timeout reference from the object. If this is the last person pressing the button, let go
+    playerButtonIndex[user][label] = setTimeout(()=>buttonRelease(arguments[0]), duration);
+
+    if(pressDownIndex[label]) return pressDownIndex[label]++;
+
+    // Determine if we're using a joystick or not
+    if(btn?.type == "joystick"){
+        // Record joystsick data based on its index
+        const joyArray = joystickData[btn.stickLR * 1];
+
+        // Non 0 data is never recorded, only when we release the joystick do we go back to 0
+        if(btn.data[0]) joyArray[0] = btn.data[0];
+        if(btn.data[1]) joyArray[1] = btn.data[1];
+
+        // Send the joystick data (string on purpose over an array of bytes because this data is more complicated)
+        godotGemServer.send(JSON.stringify([btn.index, ...joyArray]));
+    }
+
+    // Otherwise it's a button, PRESS THE BUTTON (array of bytes)
+    else godotGemServer.send([0, btn, 255 ]);
+
+    // Broadcast button press
+    console.log(arguments[0]);
+    pressDownIndex[label] = 1;
 }
 
 // Attempt to connect to godotGem on launch. If that succeeds, connect to twitchListenerCore
@@ -178,50 +214,20 @@ godotGemServer.on('open', ()=>{
 
         const twitchPhrase = resJson.text.substring(1);
         const activeConfOption = activeConfig? activeConfig[twitchPhrase] : undefined;
-        var duration = activeConfOption?.duration,
-            key = activeConfOption?.key || activeConfOption;
+        const key = activeConfOption?.key || activeConfOption;
+        var duration = activeConfOption?.duration || 1000;
         
         if(activeConfOption?.random && duration) duration = Math.floor(Math.random() * duration);
 
         const moveJson = { btn: activeConfig ? controllerMapping[key] : controllerMapping[twitchPhrase], label: twitchPhrase, user: resJson.user, pressed: true, duration };
 
-        if(moveJson.btn !== undefined){
-            //Send inputs to godotGem
-
-            // If the user is already pressing the button, ignore it until their time is up. They can then press it again.
-            if(!playerButtonIndex[resJson.user]) playerButtonIndex[resJson.user] = {};
-            if(!playerButtonIndex[resJson.user][moveJson.label]){
-                // Set a time to release the button and delete the timeout reference from the object. If this is the last person pressing the button, let go
-                playerButtonIndex[resJson.user][moveJson.label] = setTimeout(()=>buttonRelease(moveJson), duration || 1000);
-
-                if(!pressDownIndex[moveJson.label]){
-                    // Determine if we're using a joystick or not
-                    if(moveJson.btn?.type == "joystick"){
-                        // Record joystsick data based on its index
-                        const joyArray = joystickData[moveJson.btn.stickLR * 1];
-
-                        // Non 0 data is never recorded, only when we release the joystick do we go back to 0
-                        if(moveJson.btn.data[0]) joyArray[0] = moveJson.btn.data[0];
-                        if(moveJson.btn.data[1]) joyArray[1] = moveJson.btn.data[1];
-
-                        // Send the joystick data (string on purpose over an array of bytes because this data is more complicated)
-                        godotGemServer.send(JSON.stringify([moveJson.btn.index, ...joyArray]));
-                    }
-                    // Otherwise it's a button, PRESS THE BUTTON (array of bytes)
-                    else godotGemServer.send([0, moveJson.btn, 255 ]);
-
-                    // Broadcast button press
-                    console.log(moveJson);
-                    pressDownIndex[moveJson.label] = 1;
-                }
-                else pressDownIndex[moveJson.label]++;
-            }
-        }
+        //Send inputs to godotGem 
+        if(moveJson.btn !== undefined) buttonPress(moveJson);
     });
 });
 
 godotGemServer.on('message', buff=>{
-    console.log('Vrr', buff.toString());
+    console.log('Vrr', [...buff]);
     // Send vibration event as part of an external websocket
 });
 
