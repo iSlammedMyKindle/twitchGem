@@ -34,6 +34,8 @@ class buttonPressObj{
      * @param {String} label - The key this button will correlate to in `pressDownIndex`. Used in configs to make it easier to remember what action is done instead of a specific button being enabled/disabled
      * @param {Boolean} pressed - Is the button pressed or not?
      * @param {String} user - name of the person that pushed the button.
+     * @param {Boolean} random - randomly assign a time to press and release the button based on `duration` milliseconds
+     * @param {Number} duration - amount of time between a press and a release
      */
     constructor({user = "N/A", btn, label, duration = 1000, pressed = true, random = false}){
         this.pressed = pressed;
@@ -47,6 +49,7 @@ class buttonPressObj{
 // Scan for configs (basically anything with .json at the end)
 const configs = {};
 let activeConfig;
+let activeRedeems;
 
 // Player indexing - keeps track of players so that they don't spam a single button
 const playerButtonIndex = {};
@@ -234,8 +237,9 @@ function releaseAllButtons(){
     for(const button in pressDownIndex){
         // Obtain button information
         const btnInfo = activeConfig ? controllerMapping[activeConfig[button]] : controllerMapping[button];
+        const redeemInfo = activeRedeems ? controllerMapping[activeRedeems[button]] : controllerMapping[button];
         // Release the button
-        if(btnInfo?.type == "joystick") joyRelease(btnInfo);
+        if(btnInfo?.type == "joystick" || redeemInfo?.type == "joystick") joyRelease(btnInfo);
         else godotGemServer.send([0, button*1, 0]);
 
         delete pressDownIndex[button];
@@ -274,6 +278,47 @@ async function iterateThroughMacro(macroParams, doNextMacro = true){
     }
 }
 
+/**
+ * Parse button inputs from either chat or as a redeem. Depending on which one will determine where keys are matched up to
+ * @param {String} input - the controller input, can be something like "a" or "do a barrel roll" in the case of a redeem
+ * @param {String} user - user that requested the button
+ * @param {String} pressType - either "button" or "redeem"
+ */
+function parseButton(input = "", user = "[anonymous?]", pressType = "button"){
+    // Landing place depending on if we're pressing a button normally or doing a redeem
+    const targetConfig = pressType == "button" ? activeConfig : activeRedeems;
+
+    const activeConfOption = targetConfig ? targetConfig[input] : undefined;
+    const key = activeConfOption?.key || activeConfOption;
+    var duration = activeConfOption?.duration || 1000;
+
+    const moveObj = new buttonPressObj({ btn: targetConfig ? controllerMapping[key] : controllerMapping[input], label: input, user, duration, random: activeConfOption?.random });
+
+    //Send inputs to godotGem 
+    if(moveObj.btn !== undefined){
+        if(macroLock){
+            const msg = "Ignoring @"+user+"'s button press to focus on macro...";
+            listenerCore.send(JSON.stringify({action:"message", text: msg}));
+            console.log(msg);
+        }
+
+        else buttonPress(moveObj);
+    }
+    // If this fails, there's no button being corresponded (lack of key), a macro may be run instead if that's what it is. Instead of using moveObj.btn, we use targetConfig
+    else if(activeConfOption?.type == "macro"){
+        // Setup the macro
+        const macroData = { user: moveObj.user, data: activeConfOption.data };
+
+        //Store for later
+        if(macroLock) pendingMacros.push(macroData);
+        else{
+            // Stop all movements, initiate the macro
+            releaseAllButtons();
+            iterateThroughMacro(macroData);
+        }
+    }
+}
+
 // Attempt to connect to godotGem on launch. If that succeeds, connect to twitchListenerCore
 const godotGemServer = new WebSocket('ws://'+serverConfig.godotGem+':9090');
 var listenerCore;
@@ -285,7 +330,7 @@ godotGemServer.on('open', ()=>{
     listenerCore.on('open', ()=>{
         console.log('twitchListenerCore connected!');
         // Tell listenerCore to give us messsage events
-        listenerCore.send(JSON.stringify(['message']));
+        listenerCore.send(JSON.stringify(['message', 'redeem']));
     });
 
     listenerCore.on('message', buff=>{
@@ -296,39 +341,15 @@ godotGemServer.on('open', ()=>{
         if(resJson.accepted) console.log('Now listening to ', resJson.accepted);
         if(resJson.rejected) console.error('twitchListenerCore rejected these events:', resJson.rejected);
 
-        // Figure out if controller inptus are being requested
-        if(!resJson.text || resJson.text && resJson.text[0] !== "!") return;
+        // Figure out if controller inptus are being requested, can either be from chat (button) or through redeems
 
-        const twitchPhrase = resJson.text.substring(1);
-        const activeConfOption = activeConfig ? activeConfig[twitchPhrase] : undefined;
-        const key = activeConfOption?.key || activeConfOption;
-        var duration = activeConfOption?.duration || 1000;
+        var inputType;
 
-        const moveObj = new buttonPressObj({ btn: activeConfig ? controllerMapping[key] : controllerMapping[twitchPhrase], label: twitchPhrase, user: resJson.user, duration, random: activeConfig.random });
+        if(resJson.text && resJson.text[0] == "!") inputType = "button";
+        else if (resJson.title) inputType = "redeem";
+        else return;
 
-        //Send inputs to godotGem 
-        if(moveObj.btn !== undefined){
-            if(macroLock){
-                const msg = "Ignoring @"+resJson.user+"'s button press to focus on macro...";
-                listenerCore.send(JSON.stringify({action:"message", text: msg}));
-                console.log(msg);
-            }
-
-            else buttonPress(moveObj);
-        }
-        // If this fails, there's no button being corresponded (lack of key), a macro may be run instead if that's what it is. Instead of using moveObj.btn, we use activeConfig
-        else if(activeConfOption?.type == "macro"){
-            // Setup the macro
-            const macroData = { user: moveObj.user, data: activeConfOption.data };
-
-            //Store for later
-            if(macroLock) pendingMacros.push(macroData);
-            else{
-                // Stop all movements, initiate the macro
-                releaseAllButtons();
-                iterateThroughMacro(macroData);
-            }
-        }
+        parseButton(inputType == "button" ? resJson.text.substring(1) : resJson.title, resJson.user, inputType);
     });
 });
 
@@ -342,12 +363,16 @@ godotGemServer.on('message', buff=>{
 // If a change is requested, alter the commands so that we use the new config for games
 restApi.on('config', ({params, callback})=>{
     // Second parameter is the config file name (without the JSON)
-    if(!configs[params[1]] && params[1] !== "default") return callback(false, "Couldn't find the config for: "+params[1]);
+    if(!configs[params[1]] && params[1] !== "default" && params[1] !== "redeemdefault") return callback(false, "Couldn't find the config for: "+params[1]);
+
+    const isRedeem = configs[params[1]]?._redeem;
     
     if(params[1] == "default") activeConfig = undefined; // For some reason I can't use "delete", it's acting like it's in strict mode
+    else if(params[1] == "redeemdefault") activeRedeems = undefined;
+    else if(isRedeem) activeRedeems = configs[params[1]];
     else activeConfig = configs[params[1]];
 
-    const resMsg = "Changed the config to: "+params[1];
+    const resMsg = "Changed the "+(isRedeem ? "active redeems" : "config")+" to: "+params[1];
     console.log(resMsg);
     callback(true, resMsg);
 
@@ -360,6 +385,7 @@ restApi.on('panick', ({ callback })=>{
     releaseAllButtons();
 
     activeConfig = {}; // Empty config so buttons don't go through
+    activeRedeems = {};
 
     // Cancel the macro
     macroLock = false;
@@ -383,4 +409,15 @@ restApi.on('reload', async ({params, callback})=>{
     catch(e){
         callback(false, e.toString());
     }
+});
+
+restApi.on('trigger', async ({params, callback})=>{
+
+    if(!(params[1] && params[2])) return callback(false, "Too few arguments. First must be either \"button\" or \"redeem\", the second should be a valid controller input or macro depending on the loaded configurations");
+
+    parseButton(params[2], "api", params[1]);
+
+    const res = "Now processing the "+ params[1] + " command for: " + params[2];
+    console.log(res);
+    callback(true, res);
 });

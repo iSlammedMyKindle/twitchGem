@@ -1,0 +1,12 @@
+{
+    "_redeem": true,
+    "roll": {
+        "type": "macro",
+        "data": [
+            {"key": "up", "duration":200},
+            {"key": "down", "duration":200},
+            {"key": "left", "duration":200},
+            {"key": "right", "duration":200}
+        ]
+    }
+}
