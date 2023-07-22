@@ -298,7 +298,7 @@ function parseButton(input = "", user = "[anonymous?]", pressType = "button"){
     if(moveObj.btn !== undefined){
         if(macroLock){
             const msg = "Ignoring @"+user+"'s button press to focus on macro...";
-            listenerCore.send(JSON.stringify({action:"message", text: msg}));
+            listenerCore?.send(JSON.stringify({action:"message", text: msg}));
             console.log(msg);
         }
 
@@ -325,7 +325,12 @@ var listenerCore;
 
 godotGemServer.on('open', ()=>{
     console.log("Connected to godotGem!");
-    
+
+    if(process.argv.indexOf('--apionly') > -1){
+        console.warn("Only the rest api will load - skipping twitchListenerCore");
+        return;
+    }
+
     listenerCore = new WebSocket('ws://'+serverConfig.twitchListenerCore+':9001');
     listenerCore.on('open', ()=>{
         console.log('twitchListenerCore connected!');
@@ -392,7 +397,7 @@ restApi.on('panick', ({ callback })=>{
 
     const res = "Ignoring all button commands!!!";
     console.log(res);
-    listenerCore.send(JSON.stringify({action:"message", text: res}));
+    listenerCore?.send(JSON.stringify({action:"message", text: res}));
 
     callback(true, res);
 
