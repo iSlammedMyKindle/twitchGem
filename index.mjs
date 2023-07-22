@@ -26,6 +26,24 @@ class joystick {
     }
 }
 
+// Upon pressing a button, this is the template being followed to unpress the button later, send info to websockets and print to console what's going on.
+class buttonPressObj{
+    /**
+     * 
+     * @param {Number | Object} btn - specific integer of what should be pressed, or in the case of the joystick, an object that has data to push the joystick in different directions
+     * @param {String} label - The key this button will correlate to in `pressDownIndex`. Used in configs to make it easier to remember what action is done instead of a specific button being enabled/disabled
+     * @param {Boolean} pressed - Is the button pressed or not?
+     * @param {String} user - name of the person that pushed the button.
+     */
+    constructor({user = "N/A", btn, label, duration = 1000, pressed = true, random = false}){
+        this.pressed = pressed;
+        this.btn = btn;
+        this.label = label || btn;
+        this.user = user;
+        this.duration = random ? Math.floor(Math.random() * duration) : duration;
+    }
+}
+
 // Scan for configs (basically anything with .json at the end)
 const configs = {};
 let activeConfig;
@@ -35,6 +53,10 @@ const playerButtonIndex = {};
 
 // Press down indexing - everyone is going to wanna press down the same button at some point. Instead of letting go after 1 second for all button presses, have a countdown in order to wait to lift that virtual thumb up
 const pressDownIndex = {};
+
+// Macros: a sequence of button presses all in line. This will store upcoming macros and store the active macro sequence
+var pendingMacros = [];
+var macroLock;
 
 // Record current information about joysticks. When the "press" is finished, not all the data is removed and instead just some of the joystick data in case someone is pushing upwards and another is moving right
 const joystickData = [
@@ -156,16 +178,14 @@ function buttonRelease({btn, label, user}){
 
 /**
  * Presses the button based on if whether or not someone is already pressing the button or not. If someone is then the button press is instead incremented.
- * @param {btn, label, user, duration, pressed} param0 - an object containing all the data needed to press said button 
+ * @param {btn, label, user, duration, pressed} param0 - an object containing all the data needed to press said button
+ * @returns Promise - When the button releases, a signal comes back. This doesn't track if the signal was actually sent, only when the timer is up and we're about to execute the button release
  */
 function buttonPress({ btn, label, user, duration, pressed }){
     // If the user is already pressing the button, ignore it until their time is up. They can then press it again.
     if(!playerButtonIndex[user]) playerButtonIndex[user] = {};
     
     if(playerButtonIndex[user][label]) return;
-    
-    // Set a time to release the button and delete the timeout reference from the object. If this is the last person pressing the button, let go
-    playerButtonIndex[user][label] = setTimeout(()=>buttonRelease(arguments[0]), duration);
 
     if(pressDownIndex[label]) return pressDownIndex[label]++;
 
@@ -188,13 +208,80 @@ function buttonPress({ btn, label, user, duration, pressed }){
     // Broadcast button press
     console.log(arguments[0]);
     pressDownIndex[label] = 1;
+
+    // Set a time to release the button and delete the timeout reference from the object. If this is the last person pressing the button, let go
+    return new Promise((res)=>{
+        playerButtonIndex[user][label] = setTimeout(()=>{
+            buttonRelease(arguments[0]);
+            res(true);
+        }, duration);
+    });
+}
+
+/**
+ * Let go of all buttons
+ */
+function releaseAllButtons(){
+     // Delete all user button presses
+     for(const user in playerButtonIndex){
+        for(const timeoutId in playerButtonIndex[user]){
+            clearTimeout(playerButtonIndex[user][timeoutId]);
+            delete playerButtonIndex[user][timeoutId];
+        }
+    }
+
+    // Release all buttons
+    for(const button in pressDownIndex){
+        // Obtain button information
+        const btnInfo = activeConfig ? controllerMapping[activeConfig[button]] : controllerMapping[button];
+        // Release the button
+        if(btnInfo?.type == "joystick") joyRelease(btnInfo);
+        else godotGemServer.send([0, button*1, 0]);
+
+        delete pressDownIndex[button];
+    }
+}
+
+/**
+ * Run through the selected macro. Once it's done optionally go through the next on that's inside `pendingMacros`.
+ * @param {Object} macroParams - list of moves to execute until all are completed. Should only have button data, not shortcut names
+ * @param {Boolean} doNextMacro - should the next macro be run once this one is finished?
+ */
+async function iterateThroughMacro(macroParams, doNextMacro = true){
+    if(!macroLock) macroLock = true;
+    else return console.error("Macro already running! (Is there a trailing macroLock?)");
+
+    // Go through each item in the macro
+    for(const press of macroParams.data){
+        // Assemble the button data
+        if(!macroLock){
+            // Something from the outside broke the macro, STOP! (e.g panick signal)
+            console.warn("STOPPING MACRO!!! lock was set to false");
+            break;
+        }
+        const pressObj = new buttonPressObj({ user: macroParams.user, label: press.key, btn:controllerMapping[press.key], duration: press.duration, random: press.random});
+        await buttonPress(pressObj); // Wait until the button is un-pressed to continue
+    }
+
+    if(macroLock && doNextMacro){
+        macroLock = false;
+        const newMacro = pendingMacros[0];
+        if(!newMacro) return; // No more macros to run through!
+
+        pendingMacros.shift();
+
+        iterateThroughMacro(newMacro);
+    }
 }
 
 // Attempt to connect to godotGem on launch. If that succeeds, connect to twitchListenerCore
 const godotGemServer = new WebSocket('ws://'+serverConfig.godotGem+':9090');
+var listenerCore;
+
 godotGemServer.on('open', ()=>{
     console.log("Connected to godotGem!");
-    const listenerCore = new WebSocket('ws://'+serverConfig.twitchListenerCore+':9001');
+    
+    listenerCore = new WebSocket('ws://'+serverConfig.twitchListenerCore+':9001');
     listenerCore.on('open', ()=>{
         console.log('twitchListenerCore connected!');
         // Tell listenerCore to give us messsage events
@@ -213,16 +300,35 @@ godotGemServer.on('open', ()=>{
         if(!resJson.text || resJson.text && resJson.text[0] !== "!") return;
 
         const twitchPhrase = resJson.text.substring(1);
-        const activeConfOption = activeConfig? activeConfig[twitchPhrase] : undefined;
+        const activeConfOption = activeConfig ? activeConfig[twitchPhrase] : undefined;
         const key = activeConfOption?.key || activeConfOption;
         var duration = activeConfOption?.duration || 1000;
-        
-        if(activeConfOption?.random && duration) duration = Math.floor(Math.random() * duration);
 
-        const moveJson = { btn: activeConfig ? controllerMapping[key] : controllerMapping[twitchPhrase], label: twitchPhrase, user: resJson.user, pressed: true, duration };
+        const moveObj = new buttonPressObj({ btn: activeConfig ? controllerMapping[key] : controllerMapping[twitchPhrase], label: twitchPhrase, user: resJson.user, duration, random: activeConfig.random });
 
         //Send inputs to godotGem 
-        if(moveJson.btn !== undefined) buttonPress(moveJson);
+        if(moveObj.btn !== undefined){
+            if(macroLock){
+                const msg = "Ignoring @"+resJson.user+"'s button press to focus on macro...";
+                listenerCore.send(JSON.stringify({action:"message", text: msg}));
+                console.log(msg);
+            }
+
+            else buttonPress(moveObj);
+        }
+        // If this fails, there's no button being corresponded (lack of key), a macro may be run instead if that's what it is. Instead of using moveObj.btn, we use activeConfig
+        else if(activeConfOption?.type == "macro"){
+            // Setup the macro
+            const macroData = { user: moveObj.user, data: activeConfOption.data };
+
+            //Store for later
+            if(macroLock) pendingMacros.push(macroData);
+            else{
+                // Stop all movements, initiate the macro
+                releaseAllButtons();
+                iterateThroughMacro(macroData);
+            }
+        }
     });
 });
 
@@ -251,29 +357,17 @@ restApi.on('config', ({params, callback})=>{
 // Completely shut it all down - if something happens, use this to prevent any inputs from going through
 restApi.on('panick', ({ callback })=>{
 
-    // Delete all user button presses
-    for(const user in playerButtonIndex){
-        for(const timeoutId in playerButtonIndex[user]){
-            clearTimeout(playerButtonIndex[user][timeoutId]);
-            delete playerButtonIndex[user][timeoutId];
-        }
-    }
-
-    // Release all buttons
-    for(const button in pressDownIndex){
-        // Obtain button information
-        const btnInfo = activeConfig ? controllerMapping[activeConfig[button]] : controllerMapping[button];
-        // Release the button
-        if(btnInfo?.type == "joystick") joyRelease(btnInfo);
-        else godotGemServer.send([0, button*1, 0]);
-
-        delete pressDownIndex[button];
-    }
+    releaseAllButtons();
 
     activeConfig = {}; // Empty config so buttons don't go through
 
+    // Cancel the macro
+    macroLock = false;
+
     const res = "Ignoring all button commands!!!";
     console.log(res);
+    listenerCore.send(JSON.stringify({action:"message", text: res}));
+
     callback(true, res);
 
     // Send a signal to websockets telling the controller is disabled

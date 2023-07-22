@@ -3,5 +3,21 @@
     "run": "right",
     "duck": { "key": "down", "duration": 300 },
     "attack": { "key": "b", "duration": 50 },
-    "shoot": { "key": "x", "duration": 1000, "random": true }
+    "shoot": { "key": "x", "duration": 1000, "random": true },
+    "secret": {
+        "type": "macro",
+        "data": [
+            { "key":"up", "duration":200 },
+            { "key":"up", "duration":500 },
+            { "key":"down", "duration":200 },
+            { "key":"down", "duration":500 },
+            { "key":"left", "duration":200, "random": true },
+            { "key":"right", "duration":200, "random": true },
+            { "key":"left", "duration":200, "random": true },
+            { "key":"right", "duration":500, "random": true },
+            { "key":"b", "duration":200 },
+            { "key":"a", "duration":200 },
+            { "key":"start", "duration":200 }
+        ]
+    }
 }
