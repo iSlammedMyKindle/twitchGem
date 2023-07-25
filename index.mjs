@@ -5,11 +5,12 @@
 */
 
 //Modules for both connecting to listenerCore and providing events in real time to other places
-import {WebSocket, WebSocketServer} from "ws";
+import {WebSocket} from "ws";
 import serverConfig from "./serverConfig.json" assert {type:'json'};
 // import http from "http";
 import fs from "fs/promises";
 import restApi from "./restApi.mjs";
+import wsEvtEmitter from "./webSocketApi.mjs";
 
 // This was originally a flat object, 
 class joystick {
@@ -37,9 +38,10 @@ class buttonPressObj{
      * @param {Boolean} random - randomly assign a time to press and release the button based on `duration` milliseconds
      * @param {Number} duration - amount of time between a press and a release
      */
-    constructor({user = "N/A", btn, label, duration = 1000, pressed = true, random = false}){
+    constructor({user = "N/A", btn, btnKey, label, duration = 1000, pressed = true, random = false}){
         this.pressed = pressed;
         this.btn = btn;
+        this.btnKey = btnKey;
         this.label = label || btn;
         this.user = user;
         this.duration = random ? Math.floor(Math.random() * duration) : duration;
@@ -175,6 +177,7 @@ function buttonRelease({btn, label, user}){
         if(released){
             arguments[0].pressed = false;
             console.log(arguments[0]);
+            wsEvtEmitter.emit("button", { event: "button", data: arguments[0]});
         }
     }
 }
@@ -210,6 +213,7 @@ function buttonPress({ btn, label, user, duration, pressed }){
 
     // Broadcast button press
     console.log(arguments[0]);
+    wsEvtEmitter.emit("button", { event: "button", data: arguments[0]});
     pressDownIndex[label] = 1;
 
     // Set a time to release the button and delete the timeout reference from the object. If this is the last person pressing the button, let go
@@ -292,7 +296,7 @@ function parseButton(input = "", user = "[anonymous?]", pressType = "button"){
     const key = activeConfOption?.key || activeConfOption;
     var duration = activeConfOption?.duration || 1000;
 
-    const moveObj = new buttonPressObj({ btn: targetConfig ? controllerMapping[key] : controllerMapping[input], label: input, user, duration, random: activeConfOption?.random });
+    const moveObj = new buttonPressObj({ btn: targetConfig ? controllerMapping[key] : controllerMapping[input], btnKey: key || input, label: input, user, duration, random: activeConfOption?.random });
 
     //Send inputs to godotGem 
     if(moveObj.btn !== undefined){
@@ -377,11 +381,15 @@ restApi.on('config', ({params, callback})=>{
     else if(isRedeem) activeRedeems = configs[params[1]];
     else activeConfig = configs[params[1]];
 
+    // Send to the things
     const resMsg = "Changed the "+(isRedeem ? "active redeems" : "config")+" to: "+params[1];
     console.log(resMsg);
     callback(true, resMsg);
 
     // Send something to websockets that we've changed the config - send the config too
+    wsEvtEmitter.emit("config", { event:"config", configName: params[1], config: configs[params[1]] });
+
+    // TODO: send messages to display the current config 
 });
 
 // Completely shut it all down - if something happens, use this to prevent any inputs from going through
@@ -402,6 +410,7 @@ restApi.on('panick', ({ callback })=>{
     callback(true, res);
 
     // Send a signal to websockets telling the controller is disabled
+    wsEvtEmitter.emit("panick", { event:"panick" });
 });
 
 // Reload a config
