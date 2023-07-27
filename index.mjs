@@ -12,6 +12,10 @@ import fs from "fs/promises";
 import restApi from "./restApi.mjs";
 import wsEvtEmitter from "./webSocketApi.mjs";
 
+// Dynamically import the web server as long as it's not disabled
+if(process.argv.indexOf('--no-webserver') > -1) console.warn("Webserver was turned off - skipping launch");
+else import("./webServer.mjs");
+
 // This was originally a flat object, 
 class joystick {
     stickLR;
@@ -328,10 +332,10 @@ const godotGemServer = new WebSocket('ws://'+serverConfig.godotGem+':9090');
 var listenerCore;
 
 godotGemServer.on('open', ()=>{
-    console.log("Connected to godotGem!");
+    console.log("Connected to godotGem server!");
 
-    if(process.argv.indexOf('--apionly') > -1){
-        console.warn("Only the rest api will load - skipping twitchListenerCore");
+    if(process.argv.indexOf('--no-twitch') > -1){
+        console.warn("Twitch api was skipped; you can still use the rest api to send button commands");
         return;
     }
 
