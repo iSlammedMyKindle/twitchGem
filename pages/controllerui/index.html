@@ -117,7 +117,7 @@
                     pressSprites[json.data.btnKey].style.display = json.data.pressed ? "block" : "none";
                 },
                 config:json=>{
-                    if(json.config?._redeem){
+                    if(json.config?._redeem || json.configName == "redeemdefault"){
                         console.log("Received redeem config; skipping animations");
                         controllerContainer.className = "";
                         controllerContainer.style.display = "";
@@ -126,7 +126,12 @@
                     }
                     animations.newConfig();
                 },
-                panick:animations.panick,
+                panick:()=>{
+                    for(const btn of document.getElementsByClassName('btn'))
+                        btn.style.display = "none";
+
+                    animations.panick();
+                },
             }
 
             ws = new WebSocket("ws://"+location.hostname+":9005");
@@ -150,7 +155,8 @@
 
             // Query tGem to figure out if we should be showing the controller
             fetch("http://"+location.hostname+":9004/query").then(data=>data.json().then(json=>{
-                if(json.msg?.config || json.msg?.redeems){
+                console.log(json.msg);
+                if(json.msg?.config || json.msg?.redeems || json.msg?.defaultConf){
                     controllerContainer.style.display = "";
                     currentlyFaded = false;
                 }

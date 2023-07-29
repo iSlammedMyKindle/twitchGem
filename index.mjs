@@ -447,5 +447,5 @@ restApi.on('trigger', async ({params, callback})=>{
 
 // Find out what configs are currently being used
 restApi.on('query', async ({ callback })=>{
-    callback(true, {config:(activeConfig && Object.keys(activeConfig).length ? activeConfig : undefined), redeems: activeRedeems && Object.keys(activeRedeems).length ? activeRedeems : undefined});
+    callback(true, {config:(activeConfig && Object.keys(activeConfig).length ? activeConfig : undefined), redeems: activeRedeems && Object.keys(activeRedeems).length ? activeRedeems : undefined, defaultConf: !activeConfig || !activeRedeems });
 })
