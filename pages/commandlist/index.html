@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Command list</title>
+        <style>
+            #listContainer{
+                border-radius: 20px;
+                width:550px;
+                height:800px;
+                background:linear-gradient(80deg, lime, #43B31A);
+                box-shadow: 10px 10px 50px rgba(43, 144, 43, 0.5);
+                padding-top:10px;
+                position: absolute;
+            }
+
+            #listContainer #cmdList {
+                color: white;
+                font-size: 2.5em;
+                position: absolute;
+                font-family: monospace;
+                font-weight: bolder;
+                text-decoration: underline;
+                width: 500px;
+                display: grid;
+                height: 675px;
+                grid-auto-columns: min-content;
+                grid-template:"a a" 60px;
+                padding-left: 1em;
+            }
+            
+            #listContainer #cmdList div{
+                margin-left: 20px;
+            }
+
+            #listContainer h1{
+                color: white;
+                text-align: center;
+                font-family: monospace;
+                text-decoration: underline;
+                font-size: 2.5em;
+            }
+
+            /* Copy-paste of controller animations */
+            .disappear{
+                animation: ctrlFade .5s ease-out;
+                opacity: 0;
+            }
+
+            .appear{
+                animation: ctrlFade .5s ease-out reverse;
+                opacity: 1;
+                display: block;
+            }
+
+            @keyframes ctrlFade{
+                from{
+                    opacity: 100%;
+                    left:0%;
+                }
+
+                to {
+                    opacity: 0%;
+                    left:25%;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div id="listContainer" style="display:none">
+            <h1>Commands list</h1>
+            <div id="cmdList"></div>
+        </div>
+        <script>
+            const wsListeners = ["config", "panick"];
+            var currentlyFaded = true;
+        </script>
+        <script type="module" src="index.js"></script>
+        <script type="module" src="../common/serverConnection.mjs"></script>
+    </body>
+</html>

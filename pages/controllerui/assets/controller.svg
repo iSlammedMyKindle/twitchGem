@@ -26,8 +26,8 @@
      inkscape:document-units="mm"
      showgrid="false"
      inkscape:zoom="2.5247521"
-     inkscape:cx="535.10203"
-     inkscape:cy="298.64318"
+     inkscape:cx="638.8746"
+     inkscape:cy="80.007855"
      inkscape:window-width="2560"
      inkscape:window-height="1369"
      inkscape:window-x="1912"
@@ -254,7 +254,7 @@
            id="tspan25900"
            style="fill:#ffffff;fill-opacity:1;stroke-width:3.45397"
            x="51.426601"
-           y="24.228735">LT</tspan></text></g><g
+           y="24.228735">TL</tspan></text></g><g
        id="g26175"
        transform="matrix(-1,0,0,1,256.63761,0)"><path
          style="fill:#2f2f2f;fill-opacity:1;stroke:none;stroke-width:2.73752;stroke-linecap:round;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
@@ -271,4 +271,4 @@
            id="tspan26171"
            style="fill:#ffffff;fill-opacity:1;stroke-width:3.45397"
            x="-68.711662"
-           y="24.228735">RT</tspan></text></g></g></svg>
+           y="24.228735">TR</tspan></text></g></g></svg>

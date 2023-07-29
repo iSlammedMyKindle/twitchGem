@@ -60,121 +60,22 @@
             <img class="controller" id="ctrlSprite" src="./assets/controller.svg"/>
             <span id="btnContainer"></span>
         </div>
-        <script>
-            // Plays on the controller container so that the controller itself can spin upon panicking
-            function toggleController(show = true){
-                controllerContainer.classList.remove("disappear", "appear", "panick");
-                controllerContainer.style.display = show ? "none": "";
-
-                return new Promise((res)=>{
-                    // I don't know what it is, but neither firefox or chrome don't play the animation again if I don't add some kind of delay
-                    setTimeout(()=>{
-                        controllerContainer.classList.add((show ? "": "dis") + "appear");
-                        if(show) controllerContainer.style.display = "";
-                        setTimeout(()=>{
-                            if(!show) controllerContainer.style.display = "none";
-                            res(true);
-                        }, 500);
-                    }, 50);
-                });
-            }
-
-            const animations = {
-                newConfig:async()=>{
-                    tritone.play();
-                    if(currentlyFaded){
-                        // Pretend we're at the bottom, changing out the config
-                        setTimeout(()=>{
-                            toggleController();
-                            bell.play();
-                            currentlyFaded = false;
-                        }, 500);
-                    }
-                    else{
-                        await toggleController(false);
-                        toggleController();
-                        bell.play();
-                    }
-                },
-                // IT'S TOO MUCH FOR MR. INCREDIBLE! WHAH-HO!
-                panick: async()=>{
-                    ctrlSprite.classList.add('panick');
-                    panick.play();
-                    await toggleController(false);
-                    glassBreak.play();
-                    ctrlSprite.classList.remove('panick');
-                    currentlyFaded = true;
-                }
-            }
-        </script>
+        <script type="module" src="../common/toggleFade.mjs"></script>
 
         <script>
             var currentlyFaded = true;
+            const wsListeners = ["button", "config", "panick"];
 
-            const jsonEvtHandlers = {
-                button:json=>{
-                    // console.log("button", json);
-                    pressSprites[json.data.btnKey].style.display = json.data.pressed ? "block" : "none";
-                },
-                config:json=>{
-                    if(json.config?._redeem || json.configName == "redeemdefault"){
-                        console.log("Received redeem config; skipping animations");
-                        controllerContainer.className = "";
-                        controllerContainer.style.display = "";
-                        currentlyFaded = false;
-                        return;
-                    }
-                    animations.newConfig();
-                },
-                panick:()=>{
-                    for(const btn of document.getElementsByClassName('btn'))
-                        btn.style.display = "none";
-
-                    animations.panick();
-                },
-            }
-
-            ws = new WebSocket("ws://"+location.hostname+":9005");
-            ws.addEventListener("open", evt=>{
-                console.log("Connected to tGem", evt);
-                ws.send(JSON.stringify(["button", "config", "panick"]));
-            });
-            ws.addEventListener("message", evt=>{
-                // Grab the JSON - if it doesn't exist, or if there isn't a function for it, print the contents
-                try{
-                    const data = JSON.parse(evt.data);
-                    if(jsonEvtHandlers[data.event]) jsonEvtHandlers[data.event](data);
-                    else console.log("tGem -", data);
-                }
-                catch(e){
-                    console.error("Something crashed!", e);
-                }
-            });
-
-            document.addEventListener("close", ()=>ws.close());
-
-            // Query tGem to figure out if we should be showing the controller
-            fetch("http://"+location.hostname+":9004/query").then(data=>data.json().then(json=>{
+            const restFetch = json=>{
                 console.log(json.msg);
                 if(json.msg?.config || json.msg?.redeems || json.msg?.defaultConf){
                     controllerContainer.style.display = "";
                     currentlyFaded = false;
                 }
-            }));
-        </script>
-
-        <script>
-            // Load all images and map them to an object to quickly enable/disable them
-            const buttons = [ "up", "down", "left", "right", "slu", "sld", "sll", "slr", "sru", "srd", "srl", "srr", "a", "b", "x", "y", "l", "r", "tl", "tr", "sl", "sr", "start", "select", "guide"];
-            const pressSprites = {};
-
-            for(const btn of buttons){
-                const resElement = document.createElement('img');
-                resElement.src = "./assets/"+btn+'.svg';
-                resElement.className = "btn "+btn;
-                btnContainer.appendChild(resElement);
-                pressSprites[btn] = resElement;
             }
         </script>
+
+        <script type="module" src="./index.mjs"></script>
+        <script type="module" src="../common/serverConnection.mjs"></script>
     </body>
 </html>

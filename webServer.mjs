@@ -22,25 +22,31 @@ const webServer = http.createServer(async (req, res)=>{
     const urlSoruce = req.headers.referer || req.url;
     var path = urlSoruce.substring(urlSoruce.lastIndexOf("/"));
     var fileName = req.url;
-
-    if(req.url.includes("..")) return write404(res);
     
+    // There was originally code here that would block ".." in the url, but it turns out `GET` commands in general sort themselves out and can't go past a certain point. So there's no point in blocking this if the server automatically has protection
     if(!fileName.includes('.')) fileName ="/index.html";
 
     const extension = fileName.substring(fileName.lastIndexOf(".")+1);
+    var resBuff;
 
     try{
-        const resBuff = await fs.readFile("pages"+path+fileName);
-        res.setHeader("Content-type", mimeTypes[extension] || "application/octet-stream");
-        res.statusCode = 200;
-        res.write(resBuff);
-        res.end();
-
+        resBuff = await fs.readFile("pages"+path+fileName);
     }
     catch(e){
-        write404(res);
-        return;
+        // Run another try/catch to try to obtain the item within the root of the pages path
+        try{
+            resBuff = await fs.readFile("pages"+fileName);   
+        }
+        catch(e){
+            write404(res);
+            return;
+        }
     }
+
+    res.setHeader("Content-type", mimeTypes[extension] || "application/octet-stream");
+    res.statusCode = 200;
+    res.write(resBuff);
+    res.end();
 
 });
 

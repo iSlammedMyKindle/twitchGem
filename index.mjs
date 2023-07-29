@@ -87,7 +87,8 @@ const controllerMapping = {
 	"sr":7,
 	"l":8,
 	"r":9,
-	"guide":10,
+    // Disabling the guide button - this could trigger too many unwanted things XP
+	// "guide":10,
 	"a":11,
 	"b":12,
 	"x":13,
