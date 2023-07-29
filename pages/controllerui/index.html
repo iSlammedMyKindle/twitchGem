@@ -1,12 +1,132 @@
 <!DOCTYPE html>
 <html>
-    <head><title>Controller UI</title></head>
+    <head>
+        <title>Controller UI</title>
+        <audio id="tritone" src="./assets/tritone.mp3"></audio>
+        <audio id="bell" src="./assets/bell.mp3"></audio>
+        <audio id="panick" src="./assets/panick.wav"></audio>
+        <audio id="glassBreak" src="./assets/glassBreak.mp3"></audio>
+        <style>
+            .btn{
+                position: absolute;
+                display: none;
+            }
+
+            #ctrlSprite, #controllerContainer{
+                position: absolute;
+            }
+
+            .sl, .sr{
+                z-index: 1;
+            }
+
+            .appear{
+                animation: ctrlFade .5s ease-out reverse;
+                opacity: 1;
+                display: block;
+            }
+
+            .disappear{
+                animation: ctrlFade .5s ease-out;
+                opacity: 0;
+            }
+
+            .panick {
+                animation: panickAnimation linear .8s;
+            }
+
+            @keyframes panickAnimation {
+                to{
+                    transform: rotate(720deg);
+                }                
+            }
+
+            @keyframes ctrlFade{
+                from{
+                    opacity: 100%;
+                    top:0%;
+                }
+
+                to {
+                    opacity: 0%;
+                    top:50%;
+                }
+            }
+
+        </style>
+    </head>
     <body>
+        <div id="controllerContainer" style="display:none">
+            <img class="controller" id="ctrlSprite" src="./assets/controller.svg"/>
+            <span id="btnContainer"></span>
+        </div>
         <script>
+            // Plays on the controller container so that the controller itself can spin upon panicking
+            function toggleController(show = true){
+                controllerContainer.classList.remove("disappear", "appear", "panick");
+                controllerContainer.style.display = show ? "none": "";
+
+                return new Promise((res)=>{
+                    // I don't know what it is, but neither firefox or chrome don't play the animation again if I don't add some kind of delay
+                    setTimeout(()=>{
+                        controllerContainer.classList.add((show ? "": "dis") + "appear");
+                        if(show) controllerContainer.style.display = "";
+                        setTimeout(()=>{
+                            if(!show) controllerContainer.style.display = "none";
+                            res(true);
+                        }, 500);
+                    }, 50);
+                });
+            }
+
+            const animations = {
+                newConfig:async()=>{
+                    tritone.play();
+                    if(currentlyFaded){
+                        // Pretend we're at the bottom, changing out the config
+                        setTimeout(()=>{
+                            toggleController();
+                            bell.play();
+                            currentlyFaded = false;
+                        }, 500);
+                    }
+                    else{
+                        await toggleController(false);
+                        toggleController();
+                        bell.play();
+                    }
+                },
+                // IT'S TOO MUCH FOR MR. INCREDIBLE! WHAH-HO!
+                panick: async()=>{
+                    ctrlSprite.classList.add('panick');
+                    panick.play();
+                    await toggleController(false);
+                    glassBreak.play();
+                    ctrlSprite.classList.remove('panick');
+                    currentlyFaded = true;
+                }
+            }
+        </script>
+
+        <script>
+            var currentlyFaded = true;
+
             const jsonEvtHandlers = {
-                button:json=>console.log("button", json),
-                config:json=>console.log("config", json),
-                panick:json=>console.log("panick", json),
+                button:json=>{
+                    // console.log("button", json);
+                    pressSprites[json.data.btnKey].style.display = json.data.pressed ? "block" : "none";
+                },
+                config:json=>{
+                    if(json.config?._redeem){
+                        console.log("Received redeem config; skipping animations");
+                        controllerContainer.className = "";
+                        controllerContainer.style.display = "";
+                        currentlyFaded = false;
+                        return;
+                    }
+                    animations.newConfig();
+                },
+                panick:animations.panick,
             }
 
             ws = new WebSocket("ws://"+location.hostname+":9005");
@@ -26,7 +146,29 @@
                 }
             });
 
-            document.addEventListener("close", ()=>ws.close())
+            document.addEventListener("close", ()=>ws.close());
+
+            // Query tGem to figure out if we should be showing the controller
+            fetch("http://"+location.hostname+":9004/query").then(data=>data.json().then(json=>{
+                if(json.msg?.config || json.msg?.redeems){
+                    controllerContainer.style.display = "";
+                    currentlyFaded = false;
+                }
+            }));
+        </script>
+
+        <script>
+            // Load all images and map them to an object to quickly enable/disable them
+            const buttons = [ "up", "down", "left", "right", "slu", "sld", "sll", "slr", "sru", "srd", "srl", "srr", "a", "b", "x", "y", "l", "r", "tl", "tr", "sl", "sr", "start", "select", "guide"];
+            const pressSprites = {};
+
+            for(const btn of buttons){
+                const resElement = document.createElement('img');
+                resElement.src = "./assets/"+btn+'.svg';
+                resElement.className = "btn "+btn;
+                btnContainer.appendChild(resElement);
+                pressSprites[btn] = resElement;
+            }
         </script>
     </body>
 </html>

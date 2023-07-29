@@ -11,6 +11,8 @@ const mimeTypes = {
     "css": "text/css",
     "svg": "image/svg+xml",
     "png": "image/png",
+    "mp3": "audio/mpeg",
+    "wav": "audio/wav"
 }
 
 // Gonna be pretty simple; obtain the file just by reading the file name. If it doesn't exist, 404
@@ -19,7 +21,7 @@ const webServer = http.createServer(async (req, res)=>{
     // Doesn't seem like we can guarantee it, so let's grab it if we can
     const urlSoruce = req.headers.referer || req.url;
     var path = urlSoruce.substring(urlSoruce.lastIndexOf("/"));
-    var fileName = req.url.substring(req.url.lastIndexOf("/"));
+    var fileName = req.url;
 
     if(req.url.includes("..")) return write404(res);
     

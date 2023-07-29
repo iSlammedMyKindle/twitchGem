@@ -9,7 +9,7 @@ import { EventEmitter } from "node:events";
 
 const apiEmitter = new EventEmitter();
 
-const availableCommands = ["config", "panick", "reload", "trigger"];
+const availableCommands = ["config", "panick", "reload", "trigger", "query"];
 
 const restApi = http.createServer((req, res)=>{
     const params = req.url.substring(1).split('/');
@@ -17,6 +17,8 @@ const restApi = http.createServer((req, res)=>{
         //Send an event to the emitter that has a callback so we can confirm the action was taken
         let requestCompleted = false;
         res.setHeader('Content-Type', "text/plain");
+        // Anything can access this rest api, so the api should not be exposed on a port level publicly unless there is some kind of security we can add to it later (todo)
+        res.setHeader("Access-Control-Allow-Origin", "*");
         apiEmitter.emit(params[0], { params, callback:(fulfilled = false, msg = '')=>{
             // Fail the function if we've already processed the request to the user in case this is used in more than one place.
             if(!requestCompleted) requestCompleted = true;

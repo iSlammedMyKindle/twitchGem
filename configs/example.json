@@ -19,5 +19,39 @@
             { "key":"a", "duration":200 },
             { "key":"start", "duration":200 }
         ]
+    },
+    "allbuttons":{
+        "type":"macro",
+        "data":[
+            { "key":"up", "duration":100 },
+            { "key":"down", "duration":100 },
+            { "key":"left", "duration":100 },
+            { "key":"right", "duration":100 },
+
+            { "key":"slu", "duration":100 },
+            { "key":"sld", "duration":100 },
+            { "key":"sll", "duration":100 },
+            { "key":"slr", "duration":100 },
+
+            { "key":"sru", "duration":100 },
+            { "key":"srd", "duration":100 },
+            { "key":"srl", "duration":100 },
+            { "key":"srr", "duration":100 },
+
+            { "key":"a", "duration":100 },
+            { "key":"b", "duration":100 },
+            { "key":"x", "duration":100 },
+            { "key":"y", "duration":100 },
+
+            { "key":"l", "duration":100 },
+            { "key":"r", "duration":100 },
+            { "key":"tl", "duration":100 },
+            { "key":"tr", "duration":100 },
+            { "key":"sl", "duration":100 },
+            { "key":"sr", "duration":100 },
+
+            { "key":"start", "duration":100 },
+            { "key":"select", "duration":100 }
+        ]
     }
 }

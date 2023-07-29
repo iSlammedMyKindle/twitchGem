@@ -52,10 +52,11 @@ class buttonPressObj{
     }
 }
 
-// Scan for configs (basically anything with .json at the end)
 const configs = {};
-let activeConfig;
-let activeRedeems;
+
+// config being used at the moment; at start it's blank so that when it launches, people aren't just spamming commands while you setup
+let activeConfig = {};
+let activeRedeems = {};
 
 // Player indexing - keeps track of players so that they don't spam a single button
 const playerButtonIndex = {};
@@ -109,6 +110,7 @@ const controllerMapping = {
 
 /**
  * load a configuration json file, or all of them if one isn't specified
+ * scan for configs (basically anything with .json at the end)
  * @param {String} config - Name of the config under the ./configs directory
  */
 async function loadConfigs(config){
@@ -247,7 +249,9 @@ function releaseAllButtons(){
         const btnInfo = activeConfig ? controllerMapping[activeConfig[button]] : controllerMapping[button];
         const redeemInfo = activeRedeems ? controllerMapping[activeRedeems[button]] : controllerMapping[button];
         // Release the button
-        if(btnInfo?.type == "joystick" || redeemInfo?.type == "joystick") joyRelease(btnInfo);
+        if(btnInfo?.type == "joystick") joyRelease(btnInfo);
+        else if(redeemInfo?.type == "joystick") joyRelease(redeemInfo);
+
         else godotGemServer.send([0, button*1, 0]);
 
         delete pressDownIndex[button];
@@ -271,7 +275,7 @@ async function iterateThroughMacro(macroParams, doNextMacro = true){
             console.warn("STOPPING MACRO!!! lock was set to false");
             break;
         }
-        const pressObj = new buttonPressObj({ user: macroParams.user, label: press.key, btn:controllerMapping[press.key], duration: press.duration, random: press.random});
+        const pressObj = new buttonPressObj({ user: macroParams.user, label: press.key, btnKey: press.key, btn:controllerMapping[press.key], duration: press.duration, random: press.random});
         await buttonPress(pressObj); // Wait until the button is un-pressed to continue
     }
 
@@ -429,6 +433,7 @@ restApi.on('reload', async ({params, callback})=>{
     }
 });
 
+// Press a button or initiate a macro
 restApi.on('trigger', async ({params, callback})=>{
 
     if(!(params[1] && params[2])) return callback(false, "Too few arguments. First must be either \"button\" or \"redeem\", the second should be a valid controller input or macro depending on the loaded configurations");
@@ -439,3 +444,8 @@ restApi.on('trigger', async ({params, callback})=>{
     console.log(res);
     callback(true, res);
 });
+
+// Find out what configs are currently being used
+restApi.on('query', async ({ callback })=>{
+    callback(true, {config:(activeConfig && Object.keys(activeConfig).length ? activeConfig : undefined), redeems: activeRedeems && Object.keys(activeRedeems).length ? activeRedeems : undefined});
+})
