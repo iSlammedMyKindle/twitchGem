@@ -8,5 +8,25 @@
             {"key": "left", "duration":200},
             {"key": "right", "duration":200}
         ]
+    },
+    "Do the hokey pokey!": {
+        "type": "macro",
+        "data": [
+            {"key": "up", "duration": 100, "random": true},
+            {"key": "right", "duration": 100, "random": true},
+            {"key": "down", "duration": 100, "random": true},
+            {"key": "left", "duration": 100, "random": true},
+            {"key": "up", "duration": 100, "random": true},
+            {"key": "right", "duration": 100, "random": true},
+            {"key": "down", "duration": 100, "random": true},
+            {"key": "left", "duration": 100, "random": true},
+
+            {"key": "right", "duration": 100, "random": true},
+            {"key": "left", "duration": 100, "random": true},
+            {"key": "right", "duration": 100, "random": true},
+            {"key": "left", "duration": 100, "random": true},
+            {"key": "right", "duration": 100, "random": true},
+            {"key": "left", "duration": 100, "random": true}
+        ]
     }
 }

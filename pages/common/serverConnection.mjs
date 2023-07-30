@@ -20,4 +20,6 @@ ws.addEventListener("message", evt=>{
 document.addEventListener("close", ()=>ws.close());
 
 // Query tGem to figure out if we should be showing the controller
-fetch("http://"+location.hostname+":9004/query").then(data=>data.json().then(restFetch));
+if(window.restFetch)
+    fetch("http://"+location.hostname+":9004/query").then(data=>data.json().then(window.restFetch));
+else console.warn("restFetch() wasn't defined, so grabbing the active config was skipped");

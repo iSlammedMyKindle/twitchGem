@@ -8,7 +8,14 @@ import { EventEmitter } from "node:events";
 // The more I think about it, the more I believe this will need to be constructed a lot like twitchListenerCore's websocket system
 const connections = new Map();
 const evtEmitter = new EventEmitter();
-const validEvents = ["button", "config", "panick"];
+const validEvents = ["button", "config", "panick", "macro"];
+
+/*Events have the following shape:
+{
+    "event": "eventname",
+    "abc": "xyz"
+}
+*/
 
 /**
  * Send a javaSript object, this function will parse it into a string that gets sent to the client

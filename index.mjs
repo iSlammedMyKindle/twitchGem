@@ -268,6 +268,9 @@ async function iterateThroughMacro(macroParams, doNextMacro = true){
     if(!macroLock) macroLock = true;
     else return console.error("Macro already running! (Is there a trailing macroLock?)");
 
+    // Tell websocket land we're starting a macro
+    wsEvtEmitter.emit("macro", { event:"macro", user: macroParams.user, command: macroParams.command});
+
     // Go through each item in the macro
     for(const press of macroParams.data){
         // Assemble the button data
@@ -320,7 +323,7 @@ function parseButton(input = "", user = "[anonymous?]", pressType = "button"){
     // If this fails, there's no button being corresponded (lack of key), a macro may be run instead if that's what it is. Instead of using moveObj.btn, we use targetConfig
     else if(activeConfOption?.type == "macro"){
         // Setup the macro
-        const macroData = { user: moveObj.user, data: activeConfOption.data };
+        const macroData = { user: moveObj.user, command: input, data: activeConfOption.data };
 
         //Store for later
         if(macroLock) pendingMacros.push(macroData);
@@ -439,9 +442,10 @@ restApi.on('trigger', async ({params, callback})=>{
 
     if(!(params[1] && params[2])) return callback(false, "Too few arguments. First must be either \"button\" or \"redeem\", the second should be a valid controller input or macro depending on the loaded configurations");
 
-    parseButton(params[2], "api", params[1]);
+    const command = decodeURI(params[2]);
+    parseButton(command, "api", params[1]);
 
-    const res = "Now processing the "+ params[1] + " command for: " + params[2];
+    const res = "Now processing the "+ params[1] + " command for: " + command;
     console.log(res);
     callback(true, res);
 });
