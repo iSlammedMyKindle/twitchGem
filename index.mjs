@@ -370,7 +370,7 @@ godotGemServer.on('open', ()=>{
         else if (resJson.title) inputType = "redeem";
         else return;
 
-        parseButton(inputType == "button" ? resJson.text.substring(1) : resJson.title, resJson.user, inputType);
+        parseButton(inputType == "button" ? resJson.text.substring(1) : resJson.title, resJson[inputType == "button" ? "user" : "userName"], inputType);
     });
 });
 
