@@ -313,7 +313,7 @@ function parseButton(input = "", user = "[anonymous?]", pressType = "button"){
     //Send inputs to godotGem 
     if(moveObj.btn !== undefined){
         if(macroLock){
-            const msg = "Ignoring @"+user+"'s button press to focus on macro...";
+            const msg = "[tGem] Ignoring @"+user+"'s button press to focus on macro...";
             listenerCore?.send(JSON.stringify({action:"message", text: msg}));
             console.log(msg);
         }
@@ -417,7 +417,7 @@ restApi.on('panick', ({ callback })=>{
 
     const res = "Ignoring all button commands!!!";
     console.log(res);
-    listenerCore?.send(JSON.stringify({action:"message", text: res}));
+    listenerCore?.send(JSON.stringify({action:"message", text: "[tGem]" + res}));
 
     callback(true, res);
 
@@ -454,3 +454,10 @@ restApi.on('trigger', async ({params, callback})=>{
 restApi.on('query', async ({ callback })=>{
     callback(true, {config:(activeConfig && Object.keys(activeConfig).length ? activeConfig : undefined), redeems: activeRedeems && Object.keys(activeRedeems).length ? activeRedeems : undefined, defaultConf: !activeConfig || !activeRedeems });
 })
+
+process.on('SIGINT', ()=>{
+    godotGemServer.close();
+    listenerCore?.close();
+    console.log("Closed all connections");
+    process.exit();
+});
