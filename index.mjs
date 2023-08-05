@@ -67,6 +67,7 @@ const pressDownIndex = {};
 // Macros: a sequence of button presses all in line. This will store upcoming macros and store the active macro sequence
 var pendingMacros = [];
 var macroLock;
+var panicking = false;
 
 // Record current information about joysticks. When the "press" is finished, not all the data is removed and instead just some of the joystick data in case someone is pushing upwards and another is moving right
 const joystickData = [
@@ -265,22 +266,36 @@ function releaseAllButtons(){
  * @param {Boolean} doNextMacro - should the next macro be run once this one is finished?
  */
 async function iterateThroughMacro(macroParams, doNextMacro = true){
-    if(!macroLock) macroLock = true;
-    else return console.error("Macro already running! (Is there a trailing macroLock?)");
+    if(!macroLock && !macroParams.allowinputs) macroLock = true;
+    else if(!macroParams.allowinputs) return console.error("Macro already running! (Is there a trailing macroLock?)");
 
     // Tell websocket land we're starting a macro
-    wsEvtEmitter.emit("macro", { event:"macro", user: macroParams.user, command: macroParams.command});
+    if(!macroParams.silent)
+        wsEvtEmitter.emit("macro", { event:"macro", user: macroParams.user, command: macroParams.command});
 
     // Go through each item in the macro
     for(const press of macroParams.data){
-        // Assemble the button data
-        if(!macroLock){
+        
+        // There appears to be a lot of reasons to not go further XP
+        if(!macroParams.allowinputs && !macroLock){
             // Something from the outside broke the macro, STOP! (e.g panick signal)
+            // TODO: this is never hit likely because the timeout gets cleared. I'm not sure if this would cause functions to be in infinite limbo and take up RAM. Not an issue right now if this is only hosted locally
             console.warn("STOPPING MACRO!!! lock was set to false");
             break;
         }
+        else if(macroParams.allowinputs && macroLock){
+            console.log('stopping trailing macro for a standard one');
+            break;
+        }
+        else if(panicking){
+            console.log("STOPPING TRAILING MACRO! Panick was set to true");
+        }
+
+        // Assemble the button data
         const pressObj = new buttonPressObj({ user: macroParams.user, label: press.key, btnKey: press.key, btn:controllerMapping[press.key], duration: press.duration, random: press.random});
-        await buttonPress(pressObj); // Wait until the button is un-pressed to continue
+
+        if(press.fallthrough) buttonPress(pressObj); //Don't worry about waiting for the next press
+        else await buttonPress(pressObj); // Wait until the button is un-pressed to continue
     }
 
     if(macroLock && doNextMacro){
@@ -306,7 +321,7 @@ function parseButton(input = "", user = "[anonymous?]", pressType = "button"){
 
     const activeConfOption = targetConfig ? targetConfig[input] : undefined;
     const key = activeConfOption?.key || activeConfOption;
-    var duration = activeConfOption?.duration || 1000;
+    var duration = activeConfOption?.duration || 500;
 
     const moveObj = new buttonPressObj({ btn: targetConfig ? controllerMapping[key] : controllerMapping[input], btnKey: key || input, label: input, user, duration, random: activeConfOption?.random });
 
@@ -323,14 +338,19 @@ function parseButton(input = "", user = "[anonymous?]", pressType = "button"){
     // If this fails, there's no button being corresponded (lack of key), a macro may be run instead if that's what it is. Instead of using moveObj.btn, we use targetConfig
     else if(activeConfOption?.type == "macro"){
         // Setup the macro
-        const macroData = { user: moveObj.user, command: input, data: activeConfOption.data };
+        const macroData = { user: moveObj.user, allowinputs: activeConfOption.allowinputs, silent:activeConfOption.silent, command: input, data: activeConfOption.data };
 
         //Store for later
-        if(macroLock) pendingMacros.push(macroData);
+        if(macroLock && !activeConfOption.allowinputs) pendingMacros.push(macroData);
+        else if(macroLock && activeConfOption.allowinputs){
+            const msg = "[tGem] Ignoring @"+user+"'s button sequence to focus on macro...";
+            listenerCore?.send(JSON.stringify({action:"message", text: msg}));
+            console.log(msg);
+        }
         else{
             // Stop all movements, initiate the macro
-            releaseAllButtons();
-            iterateThroughMacro(macroData);
+            if(!activeConfOption.allowinputs) releaseAllButtons();
+            iterateThroughMacro(macroData, !activeConfOption.allowinputs);
         }
     }
 }
@@ -393,6 +413,8 @@ restApi.on('config', ({params, callback})=>{
     else if(isRedeem) activeRedeems = configs[params[1]];
     else activeConfig = configs[params[1]];
 
+    panicking = false;
+
     // Send to the things
     const resMsg = "Changed the "+(isRedeem ? "active redeems" : "config")+" to: "+params[1];
     console.log(resMsg);
@@ -414,6 +436,7 @@ restApi.on('panick', ({ callback })=>{
 
     // Cancel the macro
     macroLock = false;
+    panicking = true;
 
     const res = "Ignoring all button commands!!!";
     console.log(res);
