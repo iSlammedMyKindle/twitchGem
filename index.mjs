@@ -106,7 +106,7 @@ const controllerMapping = {
     "sld": new joystick([,-32767]),
     "srl": new joystick([-32767], 1),
     "srr": new joystick([32767], 1),
-    "sru": new joystick([,-32767], 1),
+    "sru": new joystick([,32767], 1),
     "srd": new joystick([,-32767], 1),
 }
 
