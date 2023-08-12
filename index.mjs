@@ -122,7 +122,7 @@ async function loadConfigs(config){
     if(config){
         const buff = await fs.readFile('./configs/'+config+'.json');
         configs[config] = JSON.parse(buff.toString());
-        console.log(config + " was reloaded");
+        console.log("config reloaded:", config);
         return;
     }
 
@@ -130,7 +130,7 @@ async function loadConfigs(config){
         if(file.indexOf('.json') > -1){
             fs.readFile('./configs/'+file).then(e=>{
                 configs[file.split('.json')[0]] = JSON.parse(e.toString());
-                console.log(file, 'has been loaded');
+                console.log('config loaded:', file);
             });
         }
     }
@@ -385,12 +385,18 @@ godotGemServer.on('open', ()=>{
         // Figure out if controller inptus are being requested, can either be from chat (button) or through redeems
 
         var inputType;
+        let substrIndex = 1;
 
         if(resJson.text && resJson.text[0] == "!") inputType = "button";
+        // Basic parsing to grab the command if it exists
+        else if(resJson.text && resJson.text.indexOf('[d][') == 0 && resJson.text.indexOf("] !") > -1){
+            substrIndex = resJson.text.indexOf("] !") + 3;
+            inputType = "button";
+        }
         else if (resJson.title) inputType = "redeem";
         else return;
 
-        parseButton(inputType == "button" ? resJson.text.substring(1) : resJson.title, resJson[inputType == "button" ? "user" : "userName"], inputType);
+        parseButton(inputType == "button" ? resJson.text.substring(substrIndex) : resJson.title, resJson[inputType == "button" ? "user" : "userName"], inputType);
     });
 });
 
