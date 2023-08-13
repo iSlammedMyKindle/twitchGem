@@ -39,7 +39,7 @@ function loadButtons(list){
     cmdList.innerHTML = "";
     for(const btn of list){
         const res = document.createElement('div');
-        res.innerText = "!"+btn;
+        res.innerText = "."+btn;
         cmdList.appendChild(res);
     }
 }

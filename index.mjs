@@ -387,10 +387,10 @@ godotGemServer.on('open', ()=>{
         var inputType;
         let substrIndex = 1;
 
-        if(resJson.text && resJson.text[0] == "!") inputType = "button";
+        if(resJson.text && resJson.text[0] == ".") inputType = "button";
         // Basic parsing to grab the command if it exists
-        else if(resJson.text && resJson.text.indexOf('[d][') == 0 && resJson.text.indexOf("] !") > -1){
-            substrIndex = resJson.text.indexOf("] !") + 3;
+        else if(resJson.text && resJson.text.indexOf('[d][') == 0 && resJson.text.indexOf("] .") > -1){
+            substrIndex = resJson.text.indexOf("] .") + 3;
             inputType = "button";
         }
         else if (resJson.title) inputType = "redeem";
