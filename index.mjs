@@ -393,10 +393,10 @@ godotGemServer.on('open', ()=>{
             substrIndex = resJson.text.indexOf("] !") + 3;
             inputType = "button";
         }
-        else if (resJson.title) inputType = "redeem";
+        else if (resJson.rewardTitle) inputType = "redeem";
         else return;
 
-        parseButton(inputType == "button" ? resJson.text.substring(substrIndex) : resJson.title, resJson[inputType == "button" ? "user" : "userName"], inputType);
+        parseButton(inputType == "button" ? resJson.text.substring(substrIndex) : resJson.rewardTitle, resJson[inputType == "button" ? "user" : "userName"], inputType);
     });
 });
 
