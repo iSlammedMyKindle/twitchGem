@@ -372,6 +372,12 @@ godotGemServer.on('open', ()=>{
         console.log('twitchListenerCore connected!');
         // Tell listenerCore to give us messsage events
         listenerCore.send(JSON.stringify(['message', 'redeem']));
+
+        // Ping the server every few minutes forever to retain a connection
+        setInterval(()=>{
+            console.log('[ping]');
+            listenerCore.send(JSON.stringify({ action: 'ping' }))
+        }, 1000 * 60 * 3);
     });
 
     listenerCore.on('message', buff=>{
@@ -394,6 +400,8 @@ godotGemServer.on('open', ()=>{
             inputType = "button";
         }
         else if (resJson.rewardTitle) inputType = "redeem";
+        else if(resJson.event == 'pong') console.log("[pong][We're still alive]");
+
         else return;
 
         parseButton(inputType == "button" ? resJson.text.substring(substrIndex) : resJson.rewardTitle, resJson[inputType == "button" ? "user" : "userName"], inputType);
