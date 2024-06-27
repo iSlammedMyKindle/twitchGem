@@ -1,5 +1,7 @@
 # tGem
 
+<img src="./tGemLogoPath.svg"/>
+
 **tGem** - or **T**witch **G**amepad **Em**ulator, assists in letting a twitch audience control the streamer's game on twitch! It is highly configurable, and capable of adapting to any application that makes use of a standard XBox 360 controller.
 
 ## Features
