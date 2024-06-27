@@ -6,11 +6,11 @@
 
 //Modules for both connecting to listenerCore and providing events in real time to other places
 import {WebSocket} from "ws";
-import serverConfig from "./serverConfig.json" assert {type:'json'};
-// import http from "http";
 import fs from "fs/promises";
 import restApi from "./restApi.mjs";
 import wsEvtEmitter from "./webSocketApi.mjs";
+
+const serverConfig = JSON.parse(await fs.readFile("./serverConfig.json"));
 
 // Dynamically import the web server as long as it's not disabled
 if(process.argv.indexOf('--no-webserver') > -1) console.warn("Webserver was turned off - skipping launch");
@@ -201,28 +201,32 @@ function buttonPress({ btn, label, user, duration, pressed }){
     
     if(playerButtonIndex[user][label]) return;
 
-    if(pressDownIndex[label]) return pressDownIndex[label]++;
+    // Increment upwards if someone else has pressed this too
+    if(pressDownIndex[label]) pressDownIndex[label]++;
 
-    // Determine if we're using a joystick or not
-    if(btn?.type == "joystick"){
-        // Record joystsick data based on its index
-        const joyArray = joystickData[btn.stickLR * 1];
-
-        // Non 0 data is never recorded, only when we release the joystick do we go back to 0
-        if(btn.data[0]) joyArray[0] = btn.data[0];
-        if(btn.data[1]) joyArray[1] = btn.data[1];
-
-        // Send the joystick data (string on purpose over an array of bytes because this data is more complicated)
-        godotGemServer.send(JSON.stringify([btn.index, ...joyArray]));
+    // This is a new button press during this time frame, press things accordingly.
+    else{
+        // Determine if we're using a joystick or not
+        if(btn?.type == "joystick"){
+            // Record joystsick data based on its index
+            const joyArray = joystickData[btn.stickLR * 1];
+    
+            // Non 0 data is never recorded, only when we release the joystick do we go back to 0
+            if(btn.data[0]) joyArray[0] = btn.data[0];
+            if(btn.data[1]) joyArray[1] = btn.data[1];
+    
+            // Send the joystick data (string on purpose over an array of bytes because this data is more complicated)
+            godotGemServer.send(JSON.stringify([btn.index, ...joyArray]));
+        }
+    
+        // Otherwise it's a button, PRESS THE BUTTON (array of bytes)
+        else godotGemServer.send([0, btn, 255 ]);
+    
+        // Broadcast button press
+        console.log(arguments[0]);
+        wsEvtEmitter.emit("button", { event: "button", data: arguments[0]});
+        pressDownIndex[label] = 1;
     }
-
-    // Otherwise it's a button, PRESS THE BUTTON (array of bytes)
-    else godotGemServer.send([0, btn, 255 ]);
-
-    // Broadcast button press
-    console.log(arguments[0]);
-    wsEvtEmitter.emit("button", { event: "button", data: arguments[0]});
-    pressDownIndex[label] = 1;
 
     // Set a time to release the button and delete the timeout reference from the object. If this is the last person pressing the button, let go
     return new Promise((res)=>{
